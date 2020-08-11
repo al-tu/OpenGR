@@ -69,7 +69,6 @@ CongruentSetExplorationBase<Traits, PointType, TransformVisitor, PairFilteringFu
   const Scalar kDiameterFraction = 0.3;
 
 #ifdef TEST_GLOBAL_TIMINGS
-    kdTreeTime = 0;
     totalTime  = 0;
     verifyTime = 0;
 #endif
@@ -114,7 +113,6 @@ CongruentSetExplorationBase<Traits, PointType, TransformVisitor, PairFilteringFu
   MatchBaseType::template Log<LogLevel::Verbose>( "----------- Timings (msec) -------------" );
   MatchBaseType::template Log<LogLevel::Verbose>( " Total computation time  : ", totalTime   );
   MatchBaseType::template Log<LogLevel::Verbose>( " Total verify time       : ", verifyTime  );
-  MatchBaseType::template Log<LogLevel::Verbose>( "    Kdtree query         : ", kdTreeTime  );
   MatchBaseType::template Log<LogLevel::Verbose>( "----------------------------------------" );
 #endif
 
@@ -379,82 +377,20 @@ template <typename Traits, typename PointType, typename TransformVisitor,
 typename CongruentSetExplorationBase<Traits, PointType, TransformVisitor, PairFilteringFunctor, OptExts ...>::Scalar
 CongruentSetExplorationBase<Traits, PointType, TransformVisitor, PairFilteringFunctor, OptExts ...>::Verify(
         const Eigen::Ref<const typename CongruentSetExplorationBase<Traits, PointType, TransformVisitor, PairFilteringFunctor, OptExts ...>::MatrixType> &mat) const {
-    using RangeQuery = typename gr::KdTree<Scalar>::template RangeQuery<>;
 
 #ifdef TEST_GLOBAL_TIMINGS
     Timer t_verify (true);
 #endif
 
-    // We allow factor 2 scaling in the normalization.
-    const Scalar epsilon = MatchBaseType::options_.delta;
-#ifdef OPENGR_USE_WEIGHTED_LCP
-    std::atomic<float> good_points(0);
-
-    auto kernel = [](Scalar x) {
-        return std::pow(std::pow(x,4) - Scalar(1), 2);
-    };
-
-    auto computeWeight = [kernel](Scalar sqx, Scalar th) {
-        return kernel( std::sqrt(sqx) / th );
-    };
-#else
-    std::atomic_uint good_points(0);
-#endif
-    const size_t number_of_points = MatchBaseType::sampled_Q_3D_.size();
-    const size_t terminate_value = best_LCP_ * number_of_points;
-
-    const Scalar sq_eps = epsilon*epsilon;
-#ifdef OPENGR_USE_WEIGHTED_LCP
-    const Scalar    eps = std::sqrt(sq_eps);
-#endif
-
-    for (size_t i = 0; i < number_of_points; ++i) {
-
-        // Use the kdtree to get the nearest neighbor
-#ifdef TEST_GLOBAL_TIMINGS
-        Timer t (true);
-#endif
-
-        RangeQuery query;
-        query.queryPoint = (mat * MatchBaseType::sampled_Q_3D_[i].pos().homogeneous()).template head<3>();
-        query.sqdist     = sq_eps;
-
-        auto result = MatchBaseType::kd_tree_.doQueryRestrictedClosestIndex( query );
-
-#ifdef TEST_GLOBAL_TIMINGS
-        kdTreeTime += Scalar(t.elapsed().count()) / Scalar(CLOCKS_PER_SEC);
-#endif
-
-        if ( result.first != gr::KdTree<Scalar>::invalidIndex() ) {
-            //      Point3D& q = sampled_P_3D_[near_neighbor_index[0]];
-            //      bool rgb_good =
-            //          (p.rgb()[0] >= 0 && q.rgb()[0] >= 0)
-            //              ? cv::norm(p.rgb() - q.rgb()) < options_.max_color_distance
-            //              : true;
-            //      bool norm_good = norm(p.normal()) > 0 && norm(q.normal()) > 0
-            //                           ? fabs(p.normal().ddot(q.normal())) >= cos_dist
-            //                           : true;
-            //      if (rgb_good && norm_good) {
-#ifdef OPENGR_USE_WEIGHTED_LCP
-            assert (result.second <= query.sqdist);
-            good_points = good_points + computeWeight(result.second, eps);
-#else
-            good_points++;
-#endif
-            //      }
-        }
-
-        // We can terminate if there is no longer chance to get better than the
-        // current best LCP.
-        if (number_of_points - i + good_points < terminate_value) {
-            break;
-        }
-    }
+    RegistrationMetric metric;
+    metric.epsilon_ = MatchBaseType::options_.delta;
+    Scalar score = metric( MatchBaseType::kd_tree_, MatchBaseType::sampled_Q_3D_, mat, best_LCP_ );
 
 #ifdef TEST_GLOBAL_TIMINGS
     verifyTime += Scalar(t_verify.elapsed().count()) / Scalar(CLOCKS_PER_SEC);
 #endif
-    return Scalar(good_points) / Scalar(number_of_points);
+
+    return score;
 }
 
 }

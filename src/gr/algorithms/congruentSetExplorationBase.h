@@ -52,6 +52,7 @@
 
 #include "gr/utils/shared.h"
 #include "gr/algorithms/matchBase.h"
+#include "gr/utils/registrationMetrics.h"
 
 #ifdef TEST_GLOBAL_TIMINGS
 #   include "gr/utils/timer.h"
@@ -114,6 +115,13 @@ public:
     static constexpr Scalar distance_factor = 2.0;
 
     using LogLevel = typename MatchBaseType::LogLevel;
+
+#ifdef OPENGR_USE_WEIGHTED_LCP
+    using RegistrationMetric = Utils::WeightedLCPMetric<Scalar>;
+#else
+    using RegistrationMetric = Utils::LCPMetric<Scalar>;
+
+#endif
 
     EIGEN_MAKE_ALIGNED_OPERATOR_NEW
 
