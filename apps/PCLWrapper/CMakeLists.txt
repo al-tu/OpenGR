@@ -14,6 +14,7 @@ if( PCL_FOUND )
   add_executable(${PROJECT_NAME} ${Demo_PCL_SRC} ${Demo_PCL_headers})
   target_link_libraries(${PROJECT_NAME} gr::algo gr::utils gr::accel ${PCL_LIBRARIES})
   add_dependencies(${PROJECT_NAME} opengr)
+  set_property(TARGET ${PROJECT_NAME} PROPERTY CXX_STANDARD 17)
 
   # [C/C++]>[General]>[Additional Include Directories]
   include_directories( ${PCL_INCLUDE_DIRS} )

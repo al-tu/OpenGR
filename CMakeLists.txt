@@ -18,6 +18,8 @@ OPTION (OpenGR_USE_WEIGHTED_LCP "Use gaussian weights for point samples when com
 ##
 ## Variables configuration
 ################################################################################
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_MODULE_PATH ${PROJECT_SOURCE_DIR}/cmake)
 set(SRC_DIR ${PROJECT_SOURCE_DIR}/src/)
 set(ASSETS_DIR ${PROJECT_SOURCE_DIR}/assets)
