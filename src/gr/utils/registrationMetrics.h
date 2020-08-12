@@ -25,6 +25,13 @@
 #include "gr/accelerators/kdtree.h"
 #include <Eigen/Core> // Eigen::Ref
 
+#if defined __has_include
+#  if __has_include (<execution>)
+#      include <numeric> // std::transform_reduce
+#      define STD_TRANSFORM_REDUCE_AVAILABLE
+#  endif
+#endif
+
 namespace gr{
 namespace Utils{
 
@@ -64,6 +71,47 @@ struct LCPMetric {
             if (number_of_points - i + good_points < terminate_int_value) { break; }
         }
         return Scalar(good_points) / Scalar(number_of_points);
+    }
+};
+
+
+/// \brief Implementation of the Largest Common PointSet metric
+///
+template <typename Scalar>
+struct LCPMetricReduce {
+    /// Support size of the LCP
+    Scalar epsilon_ = std::numeric_limits<Scalar>::max();
+
+    template <typename Range>
+    inline Scalar operator()( const gr::KdTree<Scalar> & ref,
+                              const Range& target,
+                              const Eigen::Ref<const Eigen::MatrixXf>& mat,
+                              Scalar terminate_value = Scalar( 0 ))
+    {
+        using RangeQuery = typename gr::KdTree<Scalar>::template RangeQuery<>;
+
+#ifdef STD_TRANSFORM_REDUCE_AVAILABLE
+        const size_t number_of_points = target.size();
+        const Scalar sq_eps = epsilon_*epsilon_;
+
+        uint good_points =
+        std::transform_reduce(target.begin(), target.end(), uint(0),
+                              [ref,mat,sq_eps](const auto& p) {  // Transform
+            RangeQuery query;
+            query.queryPoint = (mat * p.pos().homogeneous()).template head<3>();
+            query.sqdist     = sq_eps;
+            return ref.doQueryRestrictedClosestIndex( query ).first != gr::KdTree<Scalar>::invalidIndex()
+                    ? uint(1) : uint(0);
+        },
+                              [](int a, int b) { return a + b; }       // Reduce
+        );
+        return Scalar(good_points) / Scalar(number_of_points);
+#else
+#   warning std::transform_reduce not supported by this compiler. using fallback LCPMetric
+        LCPMetric<Scalar> metric;
+        metric.epsilon_ = epsilon_;
+        return metric( ref, target, mat, terminate_value );
+#endif
     }
 };
 
